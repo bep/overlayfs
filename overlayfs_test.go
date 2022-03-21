@@ -128,6 +128,12 @@ func TestReadDir(t *testing.T) {
 	dirnames := readDirnames(c, ofs1, "mydir")
 
 	c.Assert(dirnames, qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt", "f1-2.txt", "f2-2.txt"})
+
+	ofsSingle := New(Options{Fss: []afero.Fs{basicFs("1", "1")}})
+
+	dirnames = readDirnames(c, ofsSingle, "mydir")
+
+	c.Assert(dirnames, qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt"})
 }
 
 func TestDirOps(t *testing.T) {

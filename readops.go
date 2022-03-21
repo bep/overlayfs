@@ -36,6 +36,16 @@ func (ofs *OverlayFs) Open(name string) (afero.File, error) {
 			return nil, err
 		}
 
+		if len(fss) == 0 {
+			// They mave been deleted.
+			return nil, os.ErrNotExist
+		}
+
+		if len(fss) == 1 {
+			// Optimize for the common case.
+			return fss[0].Open(name)
+		}
+
 		return &Dir{
 			merge: ofs.mergeDirs,
 			fss:   fss,
