@@ -104,8 +104,8 @@ func (ofs *OverlayFs) collectDirsRecursive(fs afero.Fs, name string, withFs func
 
 func (ofs *OverlayFs) stat(name string, lstatIfPossible bool) (afero.Fs, os.FileInfo, bool, error) {
 	for _, fs := range ofs.fss {
-		if fs2, fi, ok, err := ofs.statRecursive(fs, name, lstatIfPossible); err == nil {
-			return fs2, fi, ok, nil
+		if fs2, fi, ok, err := ofs.statRecursive(fs, name, lstatIfPossible); err == nil || !os.IsNotExist(err) {
+			return fs2, fi, ok, err
 		}
 	}
 	return nil, nil, false, os.ErrNotExist
@@ -115,19 +115,19 @@ func (ofs *OverlayFs) statRecursive(fs afero.Fs, name string, lstatIfPossible bo
 	if lstatIfPossible {
 		if lfs, ok := fs.(afero.Lstater); ok {
 			fi, ok, err := lfs.LstatIfPossible(name)
-			if err == nil {
-				return fs, fi, ok, nil
+			if err == nil || !os.IsNotExist(err) {
+				return fs, fi, ok, err
 			}
-		} else if fi, err := fs.Stat(name); err == nil {
-			return fs, fi, false, nil
+		} else if fi, err := fs.Stat(name); err == nil || !os.IsNotExist(err) {
+			return fs, fi, false, err
 		}
-	} else if fi, err := fs.Stat(name); err == nil {
-		return fs, fi, false, nil
+	} else if fi, err := fs.Stat(name); err == nil || !os.IsNotExist(err) {
+		return fs, fi, false, err
 	}
 	if fsi, ok := fs.(FilesystemIterator); ok {
 		for i := 0; i < fsi.NumFilesystems(); i++ {
-			if fs2, fi, ok, err := ofs.statRecursive(fsi.Filesystem(i), name, lstatIfPossible); err == nil {
-				return fs2, fi, ok, nil
+			if fs2, fi, ok, err := ofs.statRecursive(fsi.Filesystem(i), name, lstatIfPossible); err == nil || !os.IsNotExist(err) {
+				return fs2, fi, ok, err
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package overlayfs
 
 import (
 	"bytes"
+	"errors"
 	"io/fs"
 	"os"
 	"strings"
@@ -74,6 +75,27 @@ func TestReadOps(t *testing.T) {
 	c.Assert(fi.Name(), qt.Equals, "f2-1.txt")
 	_, _, err = ofs.LstatIfPossible("mydir/notfound.txt")
 	c.Assert(err, qt.ErrorIs, fs.ErrNotExist)
+
+}
+
+func TestReadOpsErrors(t *testing.T) {
+	c := qt.New(t)
+	statErr := errors.New("stat error")
+	fs1, fs2 := basicFs("1", "1"), &testFs{statErr: statErr}
+	ofs := New(Options{Fss: []afero.Fs{fs1, fs2}})
+
+	fi, err := ofs.Stat("mydir/f1-1.txt")
+	c.Assert(err, qt.IsNil)
+	c.Assert(fi.Name(), qt.Equals, "f1-1.txt")
+	_, err = ofs.Stat("mydir/notfound.txt")
+	c.Assert(err, qt.ErrorIs, statErr)
+
+	// LstatIfPossible
+	fi, _, err = ofs.LstatIfPossible("mydir/f2-1.txt")
+	c.Assert(err, qt.IsNil)
+	c.Assert(fi.Name(), qt.Equals, "f2-1.txt")
+	_, _, err = ofs.LstatIfPossible("mydir/notfound.txt")
+	c.Assert(err, qt.ErrorIs, statErr)
 
 }
 
@@ -223,4 +245,64 @@ func fsFromTxtTar(s string) afero.Fs {
 
 	}
 	return fs
+}
+
+type testFs struct {
+	statErr error
+}
+
+func (fs *testFs) Stat(name string) (os.FileInfo, error) {
+	return nil, fs.statErr
+}
+
+func (fs *testFs) LstatIfPossible(name string) (os.FileInfo, bool, error) {
+	return nil, false, fs.statErr
+}
+
+func (fs *testFs) Name() string {
+	return "testFs"
+}
+
+func (fs *testFs) Create(name string) (afero.File, error) {
+	panic("not implemented")
+}
+
+func (fs *testFs) Mkdir(name string, perm os.FileMode) error {
+	panic("not implemented")
+}
+
+func (fs *testFs) MkdirAll(path string, perm os.FileMode) error {
+	panic("not implemented")
+}
+
+func (fs *testFs) Open(name string) (afero.File, error) {
+	panic("not implemented")
+}
+
+func (fs *testFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	panic("not implemented")
+}
+
+func (fs *testFs) Remove(name string) error {
+	panic("not implemented")
+}
+
+func (fs *testFs) RemoveAll(path string) error {
+	panic("not implemented")
+}
+
+func (fs *testFs) Rename(oldname string, newname string) error {
+	panic("not implemented")
+}
+
+func (fs *testFs) Chmod(name string, mode os.FileMode) error {
+	panic("not implemented")
+}
+
+func (fs *testFs) Chown(name string, uid int, gid int) error {
+	panic("not implemented")
+}
+
+func (fs *testFs) Chtimes(name string, atime time.Time, mtime time.Time) error {
+	panic("not implemented")
 }
