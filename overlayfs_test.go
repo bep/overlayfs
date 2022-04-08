@@ -23,6 +23,23 @@ func TestAppend(t *testing.T) {
 	c.Assert(readDirnames(c, ofs2, "mydir"), qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt", "f1-2.txt", "f2-2.txt", "f1-3.txt", "f2-3.txt"})
 }
 
+func TestEmpty(t *testing.T) {
+	c := qt.New(t)
+	ofs := New(Options{FirstWritable: true})
+	c.Assert(ofs.NumFilesystems(), qt.Equals, 0)
+	_, err := ofs.Stat("mydir/notfound.txt")
+	c.Assert(err, qt.ErrorIs, fs.ErrNotExist)
+	c.Assert(func() { ofs.Create("mydir/foo.txt") }, qt.PanicMatches, "overlayfs: there are no filesystems to write to")
+
+	ofs = ofs.Append(basicFs("1", "1"))
+	c.Assert(ofs.NumFilesystems(), qt.Equals, 1)
+	_, err = ofs.Stat("mydir/f1-1.txt")
+	c.Assert(err, qt.IsNil)
+	f, err := ofs.Create("mydir/foo.txt")
+	c.Assert(err, qt.IsNil)
+	f.Close()
+}
+
 func TestFileystemIterator(t *testing.T) {
 	c := qt.New(t)
 	fs1, fs2 := basicFs("", "1"), basicFs("", "2")

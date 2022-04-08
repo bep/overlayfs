@@ -44,10 +44,6 @@ type OverlayFs struct {
 
 // New creates a new OverlayFs with the given options.
 func New(opts Options) *OverlayFs {
-	if len(opts.Fss) == 0 {
-		panic("no filesystems")
-	}
-
 	if opts.DirsMerger == nil {
 		opts.DirsMerger = defaultDirMerger
 	}
@@ -139,6 +135,9 @@ func (ofs *OverlayFs) statRecursive(fs afero.Fs, name string, lstatIfPossible bo
 }
 
 func (ofs *OverlayFs) writeFs() afero.Fs {
+	if len(ofs.fss) == 0 {
+		panic("overlayfs: there are no filesystems to write to")
+	}
 	return ofs.fss[0]
 }
 
