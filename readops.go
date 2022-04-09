@@ -21,7 +21,8 @@ func (ofs *OverlayFs) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 }
 
 // Open opens a file, returning it or an error, if any happens.
-// If name is a directory, a Dir is returned representing all directories matching name.
+// If name is a directory, a *Dir is returned representing all directories matching name.
+// Note that a *Dir must not be used after it's closed.
 func (ofs *OverlayFs) Open(name string) (afero.File, error) {
 	fs, fi, _, err := ofs.stat(name, false)
 	if err != nil {
@@ -29,28 +30,30 @@ func (ofs *OverlayFs) Open(name string) (afero.File, error) {
 	}
 
 	if fi.IsDir() {
-		var fss []afero.Fs
+		dir := getDir()
+		dir.name = name
+		dir.merge = ofs.mergeDirs
 		if err := ofs.collectDirs(name, func(fs afero.Fs) {
-			fss = append(fss, fs)
+			dir.fss = append(dir.fss, fs)
 		}); err != nil {
+			dir.Close()
 			return nil, err
 		}
 
-		if len(fss) == 0 {
+		if len(dir.fss) == 0 {
 			// They mave been deleted.
+			dir.Close()
 			return nil, os.ErrNotExist
 		}
 
-		if len(fss) == 1 {
+		if len(dir.fss) == 1 {
 			// Optimize for the common case.
-			return fss[0].Open(name)
+			d, err := dir.fss[0].Open(name)
+			dir.Close()
+			return d, err
 		}
 
-		return &Dir{
-			merge: ofs.mergeDirs,
-			fss:   fss,
-			name:  name,
-		}, nil
+		return dir, nil
 	}
 
 	return fs.Open(name)

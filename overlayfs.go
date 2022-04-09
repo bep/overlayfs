@@ -2,6 +2,7 @@ package overlayfs
 
 import (
 	"os"
+	"sync"
 
 	"github.com/spf13/afero"
 )
@@ -69,12 +70,12 @@ func (ofs *OverlayFs) Filesystem(i int) afero.Fs {
 	return ofs.fss[i]
 }
 
-// NumFilesystems
+// NumFilesystems returns the number of filesystems in this composite filesystem.
 func (ofs *OverlayFs) NumFilesystems() int {
 	return len(ofs.fss)
 }
 
-// The name of this FileSystem.
+// Name returns the name of this filesystem.
 func (ofs *OverlayFs) Name() string {
 	return "overlayfs"
 }
@@ -161,6 +162,22 @@ var defaultDirMerger = func(lofi, bofi []os.FileInfo) []os.FileInfo {
 
 }
 
+var dirPool = &sync.Pool{
+	New: func() any {
+		return &Dir{}
+	},
+}
+
+func getDir() *Dir {
+	return dirPool.Get().(*Dir)
+}
+
+func releaseDir(dir *Dir) {
+	dir.fss = dir.fss[:0]
+	dir.name = ""
+	dirPool.Put(dir)
+}
+
 // Dir is an afero.File that represents list of directories that will be merged in Readdir and Readdirnames.
 type Dir struct {
 	name  string
@@ -168,7 +185,12 @@ type Dir struct {
 	merge DirsMerger
 }
 
+// Readdir implements afero.File.Readdir.
+// Note that only positive n is implemented.
 func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
+	if len(d.fss) == 0 {
+		return nil, os.ErrClosed
+	}
 	if n > 0 {
 		panic("Readdir with positive n not implemented")
 	}
@@ -197,11 +219,16 @@ func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
 
 }
 
-func (f *Dir) Readdirnames(n int) ([]string, error) {
+// Readdirnames implements afero.File.Readdirnames.
+// Note that only positive n is implemented.
+func (d *Dir) Readdirnames(n int) ([]string, error) {
+	if len(d.fss) == 0 {
+		return nil, os.ErrClosed
+	}
 	if n > 0 {
 		panic("Readdirnames with positive n not implemented")
 	}
-	fis, err := f.Readdir(n)
+	fis, err := d.Readdir(n)
 	if err != nil {
 		return nil, err
 	}
@@ -213,46 +240,63 @@ func (f *Dir) Readdirnames(n int) ([]string, error) {
 	return names, nil
 }
 
-func (f *Dir) Stat() (os.FileInfo, error) {
-	return f.fss[0].Stat(f.name)
+// Stat implements afero.File.Stat.
+func (d *Dir) Stat() (os.FileInfo, error) {
+	if len(d.fss) == 0 {
+		return nil, os.ErrClosed
+	}
+	return d.fss[0].Stat(d.name)
 }
 
-func (f *Dir) Close() error {
+// Close implements afero.File.Close.
+// Note that d must not be used after it is closed,
+// as the object may be reused.
+func (d *Dir) Close() error {
+	releaseDir(d)
 	return nil
 }
 
-func (f *Dir) Name() string {
-	return f.name
+// Name implements afero.File.Name.
+func (d *Dir) Name() string {
+	return d.name
 }
 
-func (f *Dir) Read(p []byte) (n int, err error) {
+// Read is not supported.
+func (d *Dir) Read(p []byte) (n int, err error) {
 	panic("not supported")
 }
 
-func (f *Dir) ReadAt(p []byte, off int64) (n int, err error) {
+// ReadAt is not supported.
+func (d *Dir) ReadAt(p []byte, off int64) (n int, err error) {
 	panic("not supported")
 }
 
-func (f *Dir) Seek(offset int64, whence int) (int64, error) {
+// Seek is not supported.
+func (d *Dir) Seek(offset int64, whence int) (int64, error) {
 	panic("not supported")
 }
 
-func (f *Dir) Write(p []byte) (n int, err error) {
+// Write is not supported.
+func (d *Dir) Write(p []byte) (n int, err error) {
 	panic("not supported")
 }
 
-func (f *Dir) WriteAt(p []byte, off int64) (n int, err error) {
+// WriteAt is not supported.
+func (d *Dir) WriteAt(p []byte, off int64) (n int, err error) {
 	panic("not supported")
 }
 
-func (f *Dir) Sync() error {
+// Sync is not supported.
+func (d *Dir) Sync() error {
 	panic("not supported")
 }
 
-func (f *Dir) Truncate(size int64) error {
+// Truncate is not supported.
+func (d *Dir) Truncate(size int64) error {
 	panic("not supported")
 }
 
-func (f *Dir) WriteString(s string) (ret int, err error) {
+// WriteString is not supported.
+func (d *Dir) WriteString(s string) (ret int, err error) {
 	panic("not supported")
 }

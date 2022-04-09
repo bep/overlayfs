@@ -183,10 +183,8 @@ func TestDirOps(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	c.Assert(dir.Name(), qt.Equals, "mydir")
-	c.Assert(dir.Close(), qt.IsNil)
-	fi, err := dir.Stat()
+	_, err = dir.Stat()
 	c.Assert(err, qt.IsNil)
-	c.Assert(fi.Name(), qt.Equals, `mydir`)
 
 	// Not implemented.
 	c.Assert(func() { dir.Readdir(21) }, qt.PanicMatches, `.*not implemented`)
@@ -202,6 +200,10 @@ func TestDirOps(t *testing.T) {
 	c.Assert(func() { dir.Read(nil) }, qt.PanicMatches, `not supported`)
 	c.Assert(func() { dir.ReadAt(nil, 21) }, qt.PanicMatches, `not supported`)
 	c.Assert(func() { dir.Seek(1, 2) }, qt.PanicMatches, `not supported`)
+
+	c.Assert(dir.Close(), qt.IsNil)
+	_, err = dir.Stat()
+	c.Assert(err, qt.ErrorIs, fs.ErrClosed)
 }
 
 func readDirnames(c *qt.C, fs afero.Fs, name string) []string {
