@@ -306,3 +306,41 @@ func (fs *testFs) Chown(name string, uid int, gid int) error {
 func (fs *testFs) Chtimes(name string, atime time.Time, mtime time.Time) error {
 	panic("not implemented")
 }
+
+func BenchmarkOverlayFs(b *testing.B) {
+	fs1, fs2 := basicFs("1", "1"), basicFs("1", "2")
+	ofs := New(Options{FirstWritable: true, Fss: []afero.Fs{fs1, fs2}})
+	cfs := afero.NewCopyOnWriteFs(fs2, fs1)
+
+	runBenchMark := func(fs afero.Fs, b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := afero.ReadDir(fs, "mydir")
+			if err != nil {
+				b.Fatal(err)
+			}
+			f, err := fs.Open("mydir/f1-1.txt")
+			if err != nil {
+				b.Fatal(err)
+			}
+			f.Close()
+			d, err := fs.Open("mydir")
+			if err != nil {
+				b.Fatal(err)
+			}
+			d.Close()
+			_, err = ofs.Stat("mydir/f1-1.txt")
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+
+	b.Run("OverlayFs", func(b *testing.B) {
+		runBenchMark(ofs, b)
+	})
+
+	b.Run("CopyOnWriteFs", func(b *testing.B) {
+		runBenchMark(cfs, b)
+	})
+
+}
