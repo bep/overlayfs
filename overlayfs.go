@@ -1,6 +1,7 @@
 package overlayfs
 
 import (
+	"io"
 	"os"
 	"sync"
 
@@ -174,7 +175,10 @@ func getDir() *Dir {
 
 func releaseDir(dir *Dir) {
 	dir.fss = dir.fss[:0]
+	dir.fis = dir.fis[:0]
+	dir.offset = 0
 	dir.name = ""
+	dir.err = nil
 	dirPool.Put(dir)
 }
 
@@ -183,51 +187,76 @@ type Dir struct {
 	name  string
 	fss   []afero.Fs
 	merge DirsMerger
+
+	err    error
+	offset int
+	fis    []os.FileInfo
 }
 
 // Readdir implements afero.File.Readdir.
-// Note that only positive n is implemented.
+// If n > 0, Readdir returns at most n.
 func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
+	if d.err != nil {
+		return nil, d.err
+	}
 	if len(d.fss) == 0 {
 		return nil, os.ErrClosed
 	}
-	if n > 0 {
-		panic("Readdir with positive n not implemented")
-	}
-	fis := make([]os.FileInfo, 0, len(d.fss))
-	readDir := func(fs afero.Fs) error {
-		f, err := fs.Open(d.name)
-		if err != nil {
-			return err
+
+	if d.offset == 0 {
+		readDir := func(fs afero.Fs) error {
+			f, err := fs.Open(d.name)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			fi, err := f.Readdir(-1)
+			if err != nil {
+				return err
+			}
+			d.fis = d.merge(d.fis, fi)
+			return nil
 		}
-		defer f.Close()
-		fi, err := f.Readdir(n)
-		if err != nil {
-			return err
+
+		for _, fs := range d.fss {
+			if err := readDir(fs); err != nil {
+				return nil, err
+			}
 		}
-		fis = d.merge(fis, fi)
-		return nil
 	}
 
-	for _, fs := range d.fss {
-		if err := readDir(fs); err != nil {
-			return nil, err
+	fis := d.fis[d.offset:]
+
+	if n <= 0 {
+		d.err = io.EOF
+		if d.offset > 0 && len(fis) == 0 {
+			return nil, d.err
 		}
+		return fis, nil
 	}
 
-	return fis, nil
+	if len(fis) == 0 {
+		d.err = io.EOF
+		return nil, d.err
+	}
+
+	if n > len(d.fis) {
+		n = len(d.fis)
+	}
+
+	defer func() { d.offset += n }()
+
+	return fis[:n], nil
 
 }
 
 // Readdirnames implements afero.File.Readdirnames.
-// Note that only positive n is implemented.
+// If n > 0, Readdirnames returns at most n.
 func (d *Dir) Readdirnames(n int) ([]string, error) {
 	if len(d.fss) == 0 {
 		return nil, os.ErrClosed
 	}
-	if n > 0 {
-		panic("Readdirnames with positive n not implemented")
-	}
+
 	fis, err := d.Readdir(n)
 	if err != nil {
 		return nil, err
