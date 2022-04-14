@@ -3,6 +3,7 @@ package overlayfs
 import (
 	"bytes"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"strings"
@@ -175,6 +176,37 @@ func TestReadDir(t *testing.T) {
 	c.Assert(dirnames, qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt"})
 }
 
+func TestReadDirN(t *testing.T) {
+	c := qt.New(t)
+	// 6 files.
+	ofs := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "2"), basicFs("3", "3")}})
+
+	d, _ := ofs.Open("mydir")
+
+	for i := 0; i < 3; i++ {
+		fis, err := d.Readdir(2)
+		c.Assert(err, qt.IsNil)
+		c.Assert(len(fis), qt.Equals, 2)
+	}
+
+	_, err := d.Readdir(1)
+	c.Assert(err, qt.ErrorIs, io.EOF)
+	c.Assert(d.Close(), qt.IsNil)
+
+	d, _ = ofs.Open("mydir")
+	fis, err := d.Readdir(32)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(fis), qt.Equals, 6)
+	c.Assert(d.Close(), qt.IsNil)
+
+	d, _ = ofs.Open("mydir")
+	dirnames, err := d.Readdirnames(3)
+	c.Assert(err, qt.IsNil)
+	c.Assert(dirnames, qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt", "f1-2.txt"})
+	c.Assert(d.Close(), qt.IsNil)
+
+}
+
 func TestDirOps(t *testing.T) {
 	c := qt.New(t)
 	ofs := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "1")}})
@@ -185,10 +217,6 @@ func TestDirOps(t *testing.T) {
 	c.Assert(dir.Name(), qt.Equals, "mydir")
 	_, err = dir.Stat()
 	c.Assert(err, qt.IsNil)
-
-	// Not implemented.
-	c.Assert(func() { dir.Readdir(21) }, qt.PanicMatches, `.*not implemented`)
-	c.Assert(func() { dir.Readdirnames(21) }, qt.PanicMatches, `.*not implemented`)
 
 	// Not supported.
 	c.Assert(dir.Sync, qt.PanicMatches, `not supported`)
