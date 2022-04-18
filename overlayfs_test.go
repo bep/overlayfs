@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -226,6 +227,35 @@ func TestReadDirN(t *testing.T) {
 
 }
 
+func TestReadDirStable(t *testing.T) {
+	c := qt.New(t)
+
+	// 6 files.
+	ofs := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "2"), basicFs("3", "3")}})
+	d, _ := ofs.Open("mydir")
+	fis1, err := d.Readdir(-1)
+	c.Assert(err, qt.IsNil)
+	d.Close()
+	d, _ = ofs.Open("mydir")
+	fis2, err := d.Readdir(2)
+	c.Assert(err, qt.IsNil)
+	c.Assert(d.Close(), qt.IsNil)
+	c.Assert(fis1[0].Name(), qt.Equals, "f1-1.txt")
+	c.Assert(fis2[0].Name(), qt.Equals, "f1-1.txt")
+	sort.Slice(fis1, func(i, j int) bool { return fis1[i].Name() > fis1[j].Name() })
+	sort.Slice(fis2, func(i, j int) bool { return fis2[i].Name() > fis2[j].Name() })
+	checkFi := func() {
+		c.Assert(fis1[0].Name(), qt.Equals, "f2-3.txt")
+		c.Assert(fis2[0].Name(), qt.Equals, "f2-1.txt")
+	}
+	checkFi()
+	for i := 0; i < 10; i++ {
+		d, _ = ofs.Open("mydir")
+		d.Readdir(-1)
+		c.Assert(d.Close(), qt.IsNil)
+	}
+	checkFi()
+}
 func TestDirOps(t *testing.T) {
 	c := qt.New(t)
 	ofs := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "1")}})

@@ -232,7 +232,9 @@ func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
 		if d.offset > 0 && len(fis) == 0 {
 			return nil, d.err
 		}
-		return fis, nil
+		fisc := make([]os.FileInfo, len(fis))
+		copy(fisc, fis)
+		return fisc, nil
 	}
 
 	if len(fis) == 0 {
@@ -246,7 +248,10 @@ func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
 
 	defer func() { d.offset += n }()
 
-	return fis[:n], nil
+	fisc := make([]os.FileInfo, len(fis[:n]))
+	copy(fisc, fis[:n])
+
+	return fisc, nil
 
 }
 
