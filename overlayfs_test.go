@@ -3,9 +3,11 @@ package overlayfs
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -387,39 +389,85 @@ func (fs *testFs) Chtimes(name string, atime time.Time, mtime time.Time) error {
 }
 
 func BenchmarkOverlayFs(b *testing.B) {
-	fs1, fs2 := basicFs("1", "1"), basicFs("1", "2")
-	ofs := New(Options{FirstWritable: true, Fss: []afero.Fs{fs1, fs2}})
-	cfs := afero.NewCopyOnWriteFs(fs2, fs1)
-
-	runBenchMark := func(fs afero.Fs, b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, err := afero.ReadDir(fs, "mydir")
-			if err != nil {
-				b.Fatal(err)
-			}
-			f, err := fs.Open("mydir/f1-1.txt")
-			if err != nil {
-				b.Fatal(err)
-			}
-			f.Close()
-			d, err := fs.Open("mydir")
-			if err != nil {
-				b.Fatal(err)
-			}
-			d.Close()
-			_, err = ofs.Stat("mydir/f1-1.txt")
-			if err != nil {
+	createFs := func(dir, fileID string, numFiles int) afero.Fs {
+		fs := afero.NewMemMapFs()
+		for i := 0; i < numFiles; i++ {
+			if err := afero.WriteFile(fs, filepath.Join(dir, fmt.Sprintf("f%s-%d.txt", fileID, i)), []byte("foo"), 0666); err != nil {
 				b.Fatal(err)
 			}
 		}
+		return fs
+
+	}
+	fs1, fs2, fs3 := createFs("mydir", "1", 10), createFs("mydir", "2", 10), createFs("mydir", "3", 10)
+	fs4, fs5 := createFs("mydir", "1", 4), createFs("myotherdir", "1", 4)
+	ofs := New(Options{FirstWritable: true, Fss: []afero.Fs{fs1, fs2, fs3, fs4, fs5}})
+
+	runBenchMark := func(name string, fn func(b *testing.B)) {
+		b.Run(name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				fn(b)
+			}
+		})
 	}
 
-	b.Run("OverlayFs", func(b *testing.B) {
-		runBenchMark(ofs, b)
+	runBenchMark("Stat", func(b *testing.B) {
+		_, err := ofs.Stat("mydir/f2-2.txt")
+		if err != nil {
+			b.Fatal(err)
+		}
 	})
 
-	b.Run("CopyOnWriteFs", func(b *testing.B) {
-		runBenchMark(cfs, b)
+	runBenchMark("Open file", func(b *testing.B) {
+		f, err := ofs.Open("mydir/f2-2.txt")
+		if err != nil {
+			b.Fatal(err)
+		}
+		f.Close()
+	})
+
+	runBenchMark("Open dir", func(b *testing.B) {
+		f, err := ofs.Open("mydir")
+		if err != nil {
+			b.Fatal(err)
+		}
+		f.Close()
+	})
+
+	runBenchMark("Readdir all", func(b *testing.B) {
+		f, err := ofs.Open("mydir")
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, err = f.Readdir(-1)
+		f.Close()
+	})
+
+	runBenchMark("Readdir in one fs all", func(b *testing.B) {
+		f, err := ofs.Open("myotherdir")
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, err = f.Readdir(-1)
+		f.Close()
+	})
+
+	runBenchMark("Readdir some", func(b *testing.B) {
+		f, err := ofs.Open("mydir")
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, err = f.Readdir(2)
+		f.Close()
+	})
+
+	runBenchMark("Readdir in one fs some", func(b *testing.B) {
+		f, err := ofs.Open("myotherdir")
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, err = f.Readdir(2)
+		f.Close()
 	})
 
 }
