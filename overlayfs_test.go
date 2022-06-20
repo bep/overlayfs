@@ -79,7 +79,6 @@ func TestReadOps(t *testing.T) {
 	c.Assert(fi.Name(), qt.Equals, "f2-1.txt")
 	_, _, err = ofs.LstatIfPossible("mydir/notfound.txt")
 	c.Assert(err, qt.ErrorIs, fs.ErrNotExist)
-
 }
 
 func TestReadOpsErrors(t *testing.T) {
@@ -100,7 +99,6 @@ func TestReadOpsErrors(t *testing.T) {
 	c.Assert(fi.Name(), qt.Equals, "f2-1.txt")
 	_, _, err = ofs.LstatIfPossible("mydir/notfound.txt")
 	c.Assert(err, qt.ErrorIs, statErr)
-
 }
 
 func TestOpenRecursive(t *testing.T) {
@@ -113,7 +111,6 @@ func TestOpenRecursive(t *testing.T) {
 
 	c.Assert(readFile(c, ofs1, "mydir/f1-1.txt"), qt.Equals, "f1-1")
 	c.Assert(readFile(c, ofs1, "mydir/f1-2.txt"), qt.Equals, "f1-3")
-
 }
 
 func TestWriteOpsReadonly(t *testing.T) {
@@ -124,9 +121,9 @@ func TestWriteOpsReadonly(t *testing.T) {
 	_, err := ofsReadOnly.Create("mydir/foo.txt")
 	c.Assert(err, qt.ErrorIs, fs.ErrPermission)
 
-	_, err = ofsReadOnly.OpenFile("mydir/foo.txt", os.O_CREATE, 0777)
+	_, err = ofsReadOnly.OpenFile("mydir/foo.txt", os.O_CREATE, 0o777)
 
-	err = ofsReadOnly.Chmod("mydir/foo.txt", 0666)
+	err = ofsReadOnly.Chmod("mydir/foo.txt", 0o666)
 	c.Assert(err, qt.ErrorIs, fs.ErrPermission)
 
 	err = ofsReadOnly.Chown("mydir/foo.txt", 1, 2)
@@ -135,10 +132,10 @@ func TestWriteOpsReadonly(t *testing.T) {
 	err = ofsReadOnly.Chtimes("mydir/foo.txt", time.Now(), time.Now())
 	c.Assert(err, qt.ErrorIs, fs.ErrPermission)
 
-	err = ofsReadOnly.Mkdir("mydir", 0777)
+	err = ofsReadOnly.Mkdir("mydir", 0o777)
 	c.Assert(err, qt.ErrorIs, fs.ErrPermission)
 
-	err = ofsReadOnly.MkdirAll("mydir", 0777)
+	err = ofsReadOnly.MkdirAll("mydir", 0o777)
 	c.Assert(err, qt.ErrorIs, fs.ErrPermission)
 
 	err = ofsReadOnly.Remove("mydir")
@@ -226,7 +223,6 @@ func TestReadDirN(t *testing.T) {
 	_, err = d.Readdir(-1)
 	c.Assert(err, qt.ErrorIs, io.EOF)
 	c.Assert(d.Close(), qt.IsNil)
-
 }
 
 func TestReadDirStable(t *testing.T) {
@@ -258,6 +254,7 @@ func TestReadDirStable(t *testing.T) {
 	}
 	checkFi()
 }
+
 func TestDirOps(t *testing.T) {
 	c := qt.New(t)
 	ofs := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "1")}})
@@ -320,10 +317,9 @@ func fsFromTxtTar(s string) afero.Fs {
 	data := txtar.Parse([]byte(s))
 	fs := afero.NewMemMapFs()
 	for _, f := range data.Files {
-		if err := afero.WriteFile(fs, f.Name, bytes.TrimSuffix(f.Data, []byte("\n")), 0666); err != nil {
+		if err := afero.WriteFile(fs, f.Name, bytes.TrimSuffix(f.Data, []byte("\n")), 0o666); err != nil {
 			panic(err)
 		}
-
 	}
 	return fs
 }
@@ -392,12 +388,11 @@ func BenchmarkOverlayFs(b *testing.B) {
 	createFs := func(dir, fileID string, numFiles int) afero.Fs {
 		fs := afero.NewMemMapFs()
 		for i := 0; i < numFiles; i++ {
-			if err := afero.WriteFile(fs, filepath.Join(dir, fmt.Sprintf("f%s-%d.txt", fileID, i)), []byte("foo"), 0666); err != nil {
+			if err := afero.WriteFile(fs, filepath.Join(dir, fmt.Sprintf("f%s-%d.txt", fileID, i)), []byte("foo"), 0o666); err != nil {
 				b.Fatal(err)
 			}
 		}
 		return fs
-
 	}
 	fs1, fs2, fs3 := createFs("mydir", "1", 10), createFs("mydir", "2", 10), createFs("mydir", "3", 10)
 	fs4, fs5 := createFs("mydir", "1", 4), createFs("myotherdir", "1", 4)
@@ -469,5 +464,4 @@ func BenchmarkOverlayFs(b *testing.B) {
 		_, err = f.Readdir(2)
 		f.Close()
 	})
-
 }

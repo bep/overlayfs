@@ -160,7 +160,6 @@ var defaultDirMerger = func(lofi, bofi []os.FileInfo) []os.FileInfo {
 		}
 	}
 	return lofi
-
 }
 
 var dirPool = &sync.Pool{
@@ -252,7 +251,6 @@ func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
 	copy(fisc, fis[:n])
 
 	return fisc, nil
-
 }
 
 // Readdirnames implements afero.File.Readdirnames.
