@@ -158,7 +158,7 @@ func TestWriteOpsFirstWriteable(t *testing.T) {
 	f.Close()
 }
 
-func TestReadDir(t *testing.T) {
+func TestReaddir(t *testing.T) {
 	c := qt.New(t)
 	fs1, fs2 := basicFs("1", "1"), basicFs("1", "2")
 	fs3, fs4 := basicFs("2", "3"), basicFs("1", "4")
@@ -176,7 +176,7 @@ func TestReadDir(t *testing.T) {
 	c.Assert(dirnames, qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt"})
 }
 
-func TestReadDirN(t *testing.T) {
+func TestReaddirN(t *testing.T) {
 	c := qt.New(t)
 	// 6 files.
 	ofs := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "2"), basicFs("3", "3")}})
@@ -225,7 +225,7 @@ func TestReadDirN(t *testing.T) {
 	c.Assert(d.Close(), qt.IsNil)
 }
 
-func TestReadDirStable(t *testing.T) {
+func TestReaddirStable(t *testing.T) {
 	c := qt.New(t)
 
 	// 6 files.
@@ -253,6 +253,20 @@ func TestReadDirStable(t *testing.T) {
 		c.Assert(d.Close(), qt.IsNil)
 	}
 	checkFi()
+}
+
+func TestReadDir(t *testing.T) {
+	c := qt.New(t)
+	// 6 files.
+	ofs := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "2"), basicFs("3", "3")}})
+
+	d, _ := ofs.Open("mydir")
+
+	dirEntries, err := d.(fs.ReadDirFile).ReadDir(-1)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(dirEntries), qt.Equals, 6)
+	c.Assert(dirEntries[0].Name(), qt.Equals, "f1-1.txt")
+
 }
 
 func TestDirOps(t *testing.T) {
