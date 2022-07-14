@@ -2,6 +2,8 @@ package overlayfs
 
 import (
 	"io"
+	"io/fs"
+	iofs "io/fs"
 	"os"
 	"sync"
 
@@ -13,6 +15,7 @@ var (
 	_ afero.Fs           = (*OverlayFs)(nil)
 	_ afero.Lstater      = (*OverlayFs)(nil)
 	_ afero.File         = (*Dir)(nil)
+	_ fs.ReadDirFile     = (*Dir)(nil)
 )
 
 // FilesystemIterator is an interface for iterating over the wrapped filesystems in order.
@@ -21,6 +24,7 @@ type FilesystemIterator interface {
 	NumFilesystems() int
 }
 
+// Options for the OverlayFs.
 type Options struct {
 	// The filesystems to overlay ordered in priority from left to right.
 	Fss []afero.Fs
@@ -144,9 +148,9 @@ func (ofs *OverlayFs) writeFs() afero.Fs {
 }
 
 // DirsMerger is used to merge two directories.
-type DirsMerger func(lofi, bofi []os.FileInfo) []os.FileInfo
+type DirsMerger func(lofi, bofi []fs.DirEntry) []fs.DirEntry
 
-var defaultDirMerger = func(lofi, bofi []os.FileInfo) []os.FileInfo {
+var defaultDirMerger = func(lofi, bofi []fs.DirEntry) []fs.DirEntry {
 	for _, bofi := range bofi {
 		var found bool
 		for _, lofi := range lofi {
@@ -189,12 +193,30 @@ type Dir struct {
 
 	err    error
 	offset int
-	fis    []os.FileInfo
+	fis    []fs.DirEntry
 }
 
 // Readdir implements afero.File.Readdir.
 // If n > 0, Readdir returns at most n.
+// Note that Dir also implements fs.ReadDirFile, which is more efficient.
 func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
+	dirEntries, err := d.ReadDir(n)
+	if err != nil {
+		return nil, err
+	}
+	fis := make([]os.FileInfo, len(dirEntries))
+	for i, dirEntry := range dirEntries {
+		fi, err := dirEntry.Info()
+		if err != nil {
+			return nil, err
+		}
+		fis[i] = fi
+	}
+	return fis, nil
+}
+
+// ReadDir implements fs.ReadDirFile.
+func (d *Dir) ReadDir(n int) ([]fs.DirEntry, error) {
 	if d.err != nil {
 		return nil, d.err
 	}
@@ -209,11 +231,27 @@ func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
 				return err
 			}
 			defer f.Close()
-			fi, err := f.Readdir(-1)
-			if err != nil {
-				return err
+
+			var dirEntries []iofs.DirEntry
+
+			if rdf, ok := f.(iofs.ReadDirFile); ok {
+				dirEntries, err = rdf.ReadDir(-1)
+				if err != nil {
+					return err
+				}
+			} else {
+				var fis []os.FileInfo
+				fis, err = f.Readdir(-1)
+				if err != nil {
+					return err
+				}
+				dirEntries = make([]iofs.DirEntry, len(fis))
+				for i, fi := range fis {
+					dirEntries[i] = dirEntry{fi}
+				}
 			}
-			d.fis = d.merge(d.fis, fi)
+
+			d.fis = d.merge(d.fis, dirEntries)
 			return nil
 		}
 
@@ -231,7 +269,7 @@ func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
 		if d.offset > 0 && len(fis) == 0 {
 			return nil, d.err
 		}
-		fisc := make([]os.FileInfo, len(fis))
+		fisc := make([]fs.DirEntry, len(fis))
 		copy(fisc, fis)
 		return fisc, nil
 	}
@@ -247,7 +285,7 @@ func (d *Dir) Readdir(n int) ([]os.FileInfo, error) {
 
 	defer func() { d.offset += n }()
 
-	fisc := make([]os.FileInfo, len(fis[:n]))
+	fisc := make([]fs.DirEntry, len(fis[:n]))
 	copy(fisc, fis[:n])
 
 	return fisc, nil
@@ -332,3 +370,14 @@ func (d *Dir) Truncate(size int64) error {
 func (d *Dir) WriteString(s string) (ret int, err error) {
 	panic("not supported")
 }
+
+// dirEntry is an adapter from os.FileInfo to fs.DirEntry
+type dirEntry struct {
+	fs.FileInfo
+}
+
+var _ fs.DirEntry = dirEntry{}
+
+func (d dirEntry) Type() fs.FileMode { return d.FileInfo.Mode().Type() }
+
+func (d dirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
