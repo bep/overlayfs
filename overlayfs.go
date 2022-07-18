@@ -179,16 +179,34 @@ func getDir() *Dir {
 func releaseDir(dir *Dir) {
 	dir.fss = dir.fss[:0]
 	dir.fis = dir.fis[:0]
+	dir.dirOpeners = dir.dirOpeners[:0]
 	dir.offset = 0
 	dir.name = ""
 	dir.err = nil
 	dirPool.Put(dir)
 }
 
+// OpenDir opens a new Dir with dirs to be merged by the given merge func.
+// If merge is nil, a default DirsMerger is used.
+func OpenDir(merge DirsMerger, dirOpeners ...func() (afero.File, error)) (*Dir, error) {
+	if merge == nil {
+		merge = defaultDirMerger
+	}
+	dir := getDir()
+	dir.dirOpeners = dirOpeners
+	dir.merge = merge
+	return dir, nil
+}
+
 // Dir is an afero.File that represents list of directories that will be merged in Readdir and Readdirnames.
 type Dir struct {
-	name  string
-	fss   []afero.Fs
+	// It's either a named directory in a slice of filesystems or a slice of directories.
+	name string
+	fss  []afero.Fs
+
+	// Set if fss is not set.
+	dirOpeners []func() (afero.File, error)
+
 	merge DirsMerger
 
 	err    error
@@ -220,15 +238,18 @@ func (d *Dir) ReadDir(n int) ([]fs.DirEntry, error) {
 	if d.err != nil {
 		return nil, d.err
 	}
-	if len(d.fss) == 0 {
+	if d.isClosed() {
 		return nil, os.ErrClosed
 	}
 
 	if d.offset == 0 {
-		readDir := func(fs afero.Fs) error {
-			f, err := fs.Open(d.name)
-			if err != nil {
-				return err
+		readDir := func(fs afero.Fs, f afero.File) error {
+			var err error
+			if f == nil {
+				f, err = fs.Open(d.name)
+				if err != nil {
+					return err
+				}
 			}
 			defer f.Close()
 
@@ -256,7 +277,16 @@ func (d *Dir) ReadDir(n int) ([]fs.DirEntry, error) {
 		}
 
 		for _, fs := range d.fss {
-			if err := readDir(fs); err != nil {
+			if err := readDir(fs, nil); err != nil {
+				return nil, err
+			}
+		}
+		for _, open := range d.dirOpeners {
+			f, err := open()
+			if err != nil {
+				return nil, err
+			}
+			if err := readDir(nil, f); err != nil {
 				return nil, err
 			}
 		}
@@ -294,11 +324,11 @@ func (d *Dir) ReadDir(n int) ([]fs.DirEntry, error) {
 // Readdirnames implements afero.File.Readdirnames.
 // If n > 0, Readdirnames returns at most n.
 func (d *Dir) Readdirnames(n int) ([]string, error) {
-	if len(d.fss) == 0 {
+	if d.isClosed() {
 		return nil, os.ErrClosed
 	}
 
-	fis, err := d.Readdir(n)
+	fis, err := d.ReadDir(n)
 	if err != nil {
 		return nil, err
 	}
@@ -369,6 +399,10 @@ func (d *Dir) Truncate(size int64) error {
 // WriteString is not supported.
 func (d *Dir) WriteString(s string) (ret int, err error) {
 	panic("not supported")
+}
+
+func (d *Dir) isClosed() bool {
+	return len(d.fss) == 0 && len(d.dirOpeners) == 0
 }
 
 // dirEntry is an adapter from os.FileInfo to fs.DirEntry
