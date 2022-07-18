@@ -56,6 +56,30 @@ func TestFileystemIterator(t *testing.T) {
 	c.Assert(ofs.Filesystem(2), qt.IsNil)
 }
 
+func TestOpenDir(t *testing.T) {
+	c := qt.New(t)
+	fs1, fs2, fs3 := basicFs("1", "1"), basicFs("1", "2"), basicFs("2", "2")
+	dir, err := OpenDir(
+		nil,
+		func() (afero.File, error) {
+			return fs1.Open("mydir")
+		},
+		func() (afero.File, error) {
+			return fs2.Open("mydir")
+		},
+		func() (afero.File, error) {
+			return fs3.Open("mydir")
+		},
+	)
+	c.Assert(err, qt.IsNil)
+
+	dirEntries, err := dir.ReadDir(-1)
+
+	c.Assert(err, qt.IsNil)
+	c.Assert(dirEntries, qt.HasLen, 4)
+	c.Assert(dir.Close(), qt.IsNil)
+}
+
 func TestReadOps(t *testing.T) {
 	c := qt.New(t)
 	fs1, fs2 := basicFs("1", "1"), basicFs("1", "2")
