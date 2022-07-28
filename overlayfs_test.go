@@ -82,13 +82,14 @@ func TestOpenDir(t *testing.T) {
 
 func TestReadOps(t *testing.T) {
 	c := qt.New(t)
-	fs1, fs2 := basicFs("1", "1"), basicFs("1", "2")
+	fs1, fs2 := basicFs("1", "1"), basicFs("2", "2")
 	ofs := New(Options{Fss: []afero.Fs{fs1, fs2}})
 
 	c.Assert(ofs.Name(), qt.Equals, "overlayfs")
 
 	// Open
 	c.Assert(readFile(c, ofs, "mydir/f1-1.txt"), qt.Equals, "f1-1")
+	c.Assert(readFile(c, ofs, "mydir/f2-2.txt"), qt.Equals, "f2-2")
 
 	// Stat
 	fi, err := ofs.Stat("mydir/f1-1.txt")
@@ -96,6 +97,9 @@ func TestReadOps(t *testing.T) {
 	c.Assert(fi.Name(), qt.Equals, "f1-1.txt")
 	_, err = ofs.Stat("mydir/notfound.txt")
 	c.Assert(err, qt.ErrorIs, fs.ErrNotExist)
+	fi, err = ofs.Stat("mydir/f2-2.txt")
+	c.Assert(err, qt.IsNil)
+	c.Assert(fi.Name(), qt.Equals, "f2-2.txt")
 
 	// LstatIfPossible
 	fi, _, err = ofs.LstatIfPossible("mydir/f2-1.txt")
