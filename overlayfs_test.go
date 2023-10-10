@@ -28,6 +28,23 @@ func TestAppend(t *testing.T) {
 	c.Assert(readDirnames(c, ofs2, "mydir"), qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt", "f1-2.txt", "f2-2.txt", "f1-3.txt", "f2-3.txt"})
 }
 
+func TestWithDirsMerger(t *testing.T) {
+	c := qt.New(t)
+
+	ofs1 := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "1")}})
+	ofs2 := ofs1.WithDirsMerger(func(lofi, bofi []fs.DirEntry) []fs.DirEntry {
+		if len(lofi) == 0 {
+			return bofi
+		}
+		return lofi[:2]
+	})
+	ofs1 = ofs1.Append(basicFs("3", "1"))
+	c.Assert(ofs1.NumFilesystems(), qt.Equals, 3)
+	c.Assert(ofs2.NumFilesystems(), qt.Equals, 2)
+	c.Assert(readDirnames(c, ofs1, "mydir"), qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt", "f1-2.txt", "f2-2.txt", "f1-3.txt", "f2-3.txt"})
+	c.Assert(readDirnames(c, ofs2, "mydir"), qt.DeepEquals, []string{"f1-1.txt", "f2-1.txt"})
+}
+
 func TestEmpty(t *testing.T) {
 	c := qt.New(t)
 	ofs := New(Options{FirstWritable: true})
@@ -294,7 +311,6 @@ func TestReadDir(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(dirEntries), qt.Equals, 6)
 	c.Assert(dirEntries[0].Name(), qt.Equals, "f1-1.txt")
-
 }
 
 func TestDirOps(t *testing.T) {

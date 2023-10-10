@@ -67,6 +67,12 @@ func (ofs OverlayFs) Append(fss ...afero.Fs) *OverlayFs {
 	return &ofs
 }
 
+// WithDirsMerger creates a shallow copy of the filesystem and sets the DirsMerger.
+func (ofs OverlayFs) WithDirsMerger(d DirsMerger) *OverlayFs {
+	ofs.mergeDirs = d
+	return &ofs
+}
+
 // Filesystem returns filesystem with index i, nil if not found.
 func (ofs *OverlayFs) Filesystem(i int) afero.Fs {
 	if i >= len(ofs.fss) {
