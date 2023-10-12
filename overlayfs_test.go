@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -62,6 +63,57 @@ func TestEmpty(t *testing.T) {
 	f.Close()
 }
 
+func TestConcurrencyDir(t *testing.T) {
+	c := qt.New(t)
+	ofs1Fs := New(Options{Fss: []afero.Fs{basicFs("1", "1")}})
+	ofs2Fs := New(Options{Fss: []afero.Fs{basicFs("1", "1"), basicFs("2", "1")}})
+	const mydir = "mydir"
+
+	var wg sync.WaitGroup
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for _, ofsFs := range []*OverlayFs{ofs1Fs, ofs2Fs} {
+				d, err := ofsFs.Open(mydir)
+				c.Assert(err, qt.IsNil)
+				fi, err := d.Stat()
+				c.Assert(err, qt.IsNil)
+				c.Assert(fi.Name(), qt.Equals, mydir)
+				c.Assert(d.Close(), qt.IsNil)
+				fi, err = ofsFs.Stat(mydir)
+				c.Assert(err, qt.IsNil)
+				c.Assert(fi.Name(), qt.Equals, mydir)
+				c.Assert(fi.IsDir(), qt.IsTrue)
+			}
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestConcurrencyDirEmptyFs(t *testing.T) {
+	c := qt.New(t)
+	emptyFs := New(Options{})
+	const mydir = "mydir"
+
+	var wg sync.WaitGroup
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			d, err := emptyFs.Open(mydir)
+			c.Assert(err, qt.ErrorIs, fs.ErrNotExist)
+			c.Assert(d, qt.IsNil)
+			fi, err := emptyFs.Stat(mydir)
+			c.Assert(err, qt.ErrorIs, fs.ErrNotExist)
+			c.Assert(fi, qt.IsNil)
+		}()
+	}
+
+	wg.Wait()
+}
+
 func TestFileystemIterator(t *testing.T) {
 	c := qt.New(t)
 	fs1, fs2 := basicFs("", "1"), basicFs("", "2")
@@ -76,8 +128,11 @@ func TestFileystemIterator(t *testing.T) {
 func TestOpenDir(t *testing.T) {
 	c := qt.New(t)
 	fs1, fs2, fs3 := basicFs("1", "1"), basicFs("1", "2"), basicFs("2", "2")
+	fi1, _ := fs1.Stat("mydir")
+	info := func() (os.FileInfo, error) { return fi1, nil }
 	dir, err := OpenDir(
 		nil,
+		info,
 		func() (afero.File, error) {
 			return fs1.Open("mydir")
 		},
@@ -94,6 +149,9 @@ func TestOpenDir(t *testing.T) {
 
 	c.Assert(err, qt.IsNil)
 	c.Assert(dirEntries, qt.HasLen, 4)
+	fi, err := dir.Stat()
+	c.Assert(err, qt.IsNil)
+	c.Assert(fi.Name(), qt.Equals, "mydir")
 	c.Assert(dir.Close(), qt.IsNil)
 }
 

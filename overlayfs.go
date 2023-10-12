@@ -186,6 +186,7 @@ func releaseDir(dir *Dir) {
 	dir.fss = dir.fss[:0]
 	dir.fis = dir.fis[:0]
 	dir.dirOpeners = dir.dirOpeners[:0]
+	dir.info = nil
 	dir.offset = 0
 	dir.name = ""
 	dir.err = nil
@@ -194,12 +195,26 @@ func releaseDir(dir *Dir) {
 
 // OpenDir opens a new Dir with dirs to be merged by the given merge func.
 // If merge is nil, a default DirsMerger is used.
-func OpenDir(merge DirsMerger, dirOpeners ...func() (afero.File, error)) (*Dir, error) {
+func OpenDir(
+	merge DirsMerger,
+	// Used to stat the directory.
+	info func() (os.FileInfo, error),
+	// Used to open the directories to be merged.
+	dirOpeners ...func() (afero.File, error),
+) (*Dir, error) {
 	if merge == nil {
 		merge = defaultDirMerger
 	}
+	if info == nil {
+		panic("overlayfs: info must not be nil")
+	}
+	if len(dirOpeners) == 0 {
+		panic("overlayfs: dirOpeners must not be empty")
+	}
+
 	dir := getDir()
 	dir.dirOpeners = dirOpeners
+	dir.info = info
 	dir.merge = merge
 	return dir, nil
 }
@@ -212,6 +227,7 @@ type Dir struct {
 
 	// Set if fss is not set.
 	dirOpeners []func() (afero.File, error)
+	info       func() (os.FileInfo, error)
 
 	merge DirsMerger
 
@@ -348,8 +364,11 @@ func (d *Dir) Readdirnames(n int) ([]string, error) {
 
 // Stat implements afero.File.Stat.
 func (d *Dir) Stat() (os.FileInfo, error) {
-	if len(d.fss) == 0 {
+	if d.isClosed() {
 		return nil, os.ErrClosed
+	}
+	if d.info != nil {
+		return d.info()
 	}
 	return d.fss[0].Stat(d.name)
 }
