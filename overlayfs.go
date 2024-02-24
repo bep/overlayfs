@@ -1,6 +1,7 @@
 package overlayfs
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	iofs "io/fs"
@@ -386,44 +387,48 @@ func (d *Dir) Name() string {
 	return d.name
 }
 
+func (d *Dir) notSupported() string {
+	return fmt.Sprintf("operation not supported on directory %q", d.name)
+}
+
 // Read is not supported.
 func (d *Dir) Read(p []byte) (n int, err error) {
-	panic("not supported")
+	panic(d.notSupported())
 }
 
 // ReadAt is not supported.
 func (d *Dir) ReadAt(p []byte, off int64) (n int, err error) {
-	panic("not supported")
+	panic(d.notSupported())
 }
 
 // Seek is not supported.
 func (d *Dir) Seek(offset int64, whence int) (int64, error) {
-	panic("not supported")
+	panic(d.notSupported())
 }
 
 // Write is not supported.
 func (d *Dir) Write(p []byte) (n int, err error) {
-	panic("not supported")
+	panic(d.notSupported())
 }
 
 // WriteAt is not supported.
 func (d *Dir) WriteAt(p []byte, off int64) (n int, err error) {
-	panic("not supported")
+	panic(d.notSupported())
 }
 
 // Sync is not supported.
 func (d *Dir) Sync() error {
-	panic("not supported")
+	panic(d.notSupported())
 }
 
 // Truncate is not supported.
 func (d *Dir) Truncate(size int64) error {
-	panic("not supported")
+	panic(d.notSupported())
 }
 
 // WriteString is not supported.
 func (d *Dir) WriteString(s string) (ret int, err error) {
-	panic("not supported")
+	panic(d.notSupported())
 }
 
 func (d *Dir) isClosed() bool {

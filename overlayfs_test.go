@@ -382,16 +382,16 @@ func TestDirOps(t *testing.T) {
 	_, err = dir.Stat()
 	c.Assert(err, qt.IsNil)
 
-	// Not supported.
-	c.Assert(dir.Sync, qt.PanicMatches, `not supported`)
+	// operation not supported on.*.
+	c.Assert(dir.Sync, qt.PanicMatches, `operation not supported on.*`)
 
-	c.Assert(func() { dir.Truncate(0) }, qt.PanicMatches, `not supported`)
-	c.Assert(func() { dir.WriteString("asdf") }, qt.PanicMatches, `not supported`)
-	c.Assert(func() { dir.Write(nil) }, qt.PanicMatches, `not supported`)
-	c.Assert(func() { dir.WriteAt(nil, 21) }, qt.PanicMatches, `not supported`)
-	c.Assert(func() { dir.Read(nil) }, qt.PanicMatches, `not supported`)
-	c.Assert(func() { dir.ReadAt(nil, 21) }, qt.PanicMatches, `not supported`)
-	c.Assert(func() { dir.Seek(1, 2) }, qt.PanicMatches, `not supported`)
+	c.Assert(func() { dir.Truncate(0) }, qt.PanicMatches, `operation not supported on.*`)
+	c.Assert(func() { dir.WriteString("asdf") }, qt.PanicMatches, `operation not supported on.*`)
+	c.Assert(func() { dir.Write(nil) }, qt.PanicMatches, `operation not supported on.*`)
+	c.Assert(func() { dir.WriteAt(nil, 21) }, qt.PanicMatches, `operation not supported on.*`)
+	c.Assert(func() { dir.Read(nil) }, qt.PanicMatches, `operation not supported on.*`)
+	c.Assert(func() { dir.ReadAt(nil, 21) }, qt.PanicMatches, `operation not supported on.*`)
+	c.Assert(func() { dir.Seek(1, 2) }, qt.PanicMatches, `operation not supported on.*`)
 
 	c.Assert(dir.Close(), qt.IsNil)
 	_, err = dir.Stat()
