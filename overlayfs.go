@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	iofs "io/fs"
 	"os"
 	"sync"
 
@@ -109,7 +108,7 @@ func (ofs *OverlayFs) collectDirsRecursive(fs afero.Fs, name string, withFs func
 		withFs(fs)
 	}
 	if fsi, ok := fs.(FilesystemIterator); ok {
-		for i := 0; i < fsi.NumFilesystems(); i++ {
+		for i := range fsi.NumFilesystems() {
 			if err := ofs.collectDirsRecursive(fsi.Filesystem(i), name, withFs); err != nil {
 				return err
 			}
@@ -141,7 +140,7 @@ func (ofs *OverlayFs) statRecursive(fs afero.Fs, name string, lstatIfPossible bo
 		return fs, fi, false, err
 	}
 	if fsi, ok := fs.(FilesystemIterator); ok {
-		for i := 0; i < fsi.NumFilesystems(); i++ {
+		for i := range fsi.NumFilesystems() {
 			if fs2, fi, ok, err := ofs.statRecursive(fsi.Filesystem(i), name, lstatIfPossible); err == nil || !os.IsNotExist(err) {
 				return fs2, fi, ok, err
 			}
@@ -269,19 +268,19 @@ func (d *Dir) ReadDir(n int) ([]fs.DirEntry, error) {
 	}
 
 	if d.offset == 0 {
-		readDir := func(fs afero.Fs, f afero.File) error {
+		readDir := func(afs afero.Fs, f afero.File) error {
 			var err error
 			if f == nil {
-				f, err = fs.Open(d.name)
+				f, err = afs.Open(d.name)
 				if err != nil {
 					return err
 				}
 			}
 			defer f.Close()
 
-			var dirEntries []iofs.DirEntry
+			var dirEntries []fs.DirEntry
 
-			if rdf, ok := f.(iofs.ReadDirFile); ok {
+			if rdf, ok := f.(fs.ReadDirFile); ok {
 				dirEntries, err = rdf.ReadDir(-1)
 				if err != nil {
 					return err
@@ -292,7 +291,7 @@ func (d *Dir) ReadDir(n int) ([]fs.DirEntry, error) {
 				if err != nil {
 					return err
 				}
-				dirEntries = make([]iofs.DirEntry, len(fis))
+				dirEntries = make([]fs.DirEntry, len(fis))
 				for i, fi := range fis {
 					dirEntries[i] = dirEntry{fi}
 				}
