@@ -1,6 +1,6 @@
 module github.com/bep/overlayfs
 
-go 1.18
+go 1.23
 
 require (
 	github.com/frankban/quicktest v1.14.2
