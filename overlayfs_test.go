@@ -73,7 +73,7 @@ func TestConcurrencyDir(t *testing.T) {
 	const mydir = "mydir"
 
 	var wg sync.WaitGroup
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -101,7 +101,7 @@ func TestConcurrencyDirEmptyFs(t *testing.T) {
 	const mydir = "mydir"
 
 	var wg sync.WaitGroup
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -228,6 +228,7 @@ func TestWriteOpsReadonly(t *testing.T) {
 	c.Assert(err, qt.ErrorIs, fs.ErrPermission)
 
 	_, err = ofsReadOnly.OpenFile("mydir/foo.txt", os.O_CREATE, 0o777)
+	c.Assert(err, qt.ErrorIs, fs.ErrPermission)
 
 	err = ofsReadOnly.Chmod("mydir/foo.txt", 0o666)
 	c.Assert(err, qt.ErrorIs, fs.ErrPermission)
@@ -289,7 +290,7 @@ func TestReaddirN(t *testing.T) {
 
 	d, _ := ofs.Open("mydir")
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		fis, err := d.Readdir(2)
 		c.Assert(err, qt.IsNil)
 		c.Assert(len(fis), qt.Equals, 2)
@@ -353,7 +354,7 @@ func TestReaddirStable(t *testing.T) {
 		c.Assert(fis2[0].Name(), qt.Equals, "f2-1.txt")
 	}
 	checkFi()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		d, _ = ofs.Open("mydir")
 		d.Readdir(-1)
 		c.Assert(d.Close(), qt.IsNil)
@@ -506,7 +507,7 @@ func (fs *testFs) Chtimes(name string, atime time.Time, mtime time.Time) error {
 func BenchmarkOverlayFs(b *testing.B) {
 	createFs := func(dir, fileID string, numFiles int) afero.Fs {
 		fs := afero.NewMemMapFs()
-		for i := 0; i < numFiles; i++ {
+		for i := range numFiles {
 			if err := afero.WriteFile(fs, filepath.Join(dir, fmt.Sprintf("f%s-%d.txt", fileID, i)), []byte("foo"), 0o666); err != nil {
 				b.Fatal(err)
 			}
@@ -554,6 +555,9 @@ func BenchmarkOverlayFs(b *testing.B) {
 			b.Fatal(err)
 		}
 		_, err = f.Readdir(-1)
+		if err != nil {
+			b.Fatal(err)
+		}
 		f.Close()
 	})
 
@@ -563,6 +567,9 @@ func BenchmarkOverlayFs(b *testing.B) {
 			b.Fatal(err)
 		}
 		_, err = f.Readdir(-1)
+		if err != nil {
+			b.Fatal(err)
+		}
 		f.Close()
 	})
 
@@ -572,6 +579,9 @@ func BenchmarkOverlayFs(b *testing.B) {
 			b.Fatal(err)
 		}
 		_, err = f.Readdir(2)
+		if err != nil {
+			b.Fatal(err)
+		}
 		f.Close()
 	})
 
@@ -581,6 +591,9 @@ func BenchmarkOverlayFs(b *testing.B) {
 			b.Fatal(err)
 		}
 		_, err = f.Readdir(2)
+		if err != nil {
+			b.Fatal(err)
+		}
 		f.Close()
 	})
 }
