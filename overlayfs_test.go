@@ -74,9 +74,7 @@ func TestConcurrencyDir(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 30 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for _, ofsFs := range []*OverlayFs{ofs1Fs, ofs2Fs} {
 				d, err := ofsFs.Open(mydir)
 				c.Assert(err, qt.IsNil)
@@ -89,7 +87,7 @@ func TestConcurrencyDir(t *testing.T) {
 				c.Assert(fi.Name(), qt.Equals, mydir)
 				c.Assert(fi.IsDir(), qt.IsTrue)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -102,16 +100,14 @@ func TestConcurrencyDirEmptyFs(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 30 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			d, err := emptyFs.Open(mydir)
 			c.Assert(err, qt.ErrorIs, fs.ErrNotExist)
 			c.Assert(d, qt.IsNil)
 			fi, err := emptyFs.Stat(mydir)
 			c.Assert(err, qt.ErrorIs, fs.ErrNotExist)
 			c.Assert(fi, qt.IsNil)
-		}()
+		})
 	}
 
 	wg.Wait()
