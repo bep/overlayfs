@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -201,6 +202,32 @@ func TestReadOpsErrors(t *testing.T) {
 	c.Assert(fi.Name(), qt.Equals, "f2-1.txt")
 	_, _, err = ofs.LstatIfPossible("mydir/notfound.txt")
 	c.Assert(err, qt.ErrorIs, statErr)
+}
+
+func TestLstatIfPossibleSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows because symlink creation needs admin privileges not available in CI.")
+	}
+
+	c := qt.New(t)
+
+	dir1, dir2 := t.TempDir(), t.TempDir()
+
+	c.Assert(os.WriteFile(filepath.Join(dir2, "target.txt"), []byte("target"), 0o666), qt.IsNil)
+	c.Assert(os.Symlink(filepath.Join(dir2, "target.txt"), filepath.Join(dir1, "link.txt")), qt.IsNil)
+
+	fs1 := afero.NewBasePathFs(afero.NewOsFs(), dir1)
+	fs2 := afero.NewBasePathFs(afero.NewOsFs(), dir2)
+	ofs := New(Options{Fss: []afero.Fs{fs1, fs2}})
+
+	fi, ok, err := ofs.LstatIfPossible("link.txt")
+	c.Assert(err, qt.IsNil)
+	c.Assert(ok, qt.IsTrue)
+	c.Assert(fi.Mode()&os.ModeSymlink != 0, qt.IsTrue)
+
+	fi, err = ofs.Stat("link.txt")
+	c.Assert(err, qt.IsNil)
+	c.Assert(fi.Mode()&os.ModeSymlink == 0, qt.IsTrue)
 }
 
 func TestOpenRecursive(t *testing.T) {
