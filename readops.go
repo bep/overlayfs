@@ -19,7 +19,7 @@ func (ofs *OverlayFs) Stat(name string) (os.FileInfo, error) {
 // LstatIfPossible will call Lstat if the filesystem iself is, or it delegates to, the os filesystem.
 // Else it will call Stat.
 func (ofs *OverlayFs) LstatIfPossible(name string) (os.FileInfo, bool, error) {
-	_, fi, ok, err := ofs.stat(name, false)
+	_, fi, ok, err := ofs.stat(name, true)
 	return fi, ok, err
 }
 
